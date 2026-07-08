@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Street Light Fault Reporting</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #f5f6f8;
+    color: #1c1e21;
+  }
+  .app {
+    max-width: 560px;
+    margin: 50px auto;
+    padding: 32px;
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 4px 12px rgba(0,0,0,0.04);
+  }
+  h1 {
+    margin: 0 0 4px;
+    font-size: 22px;
+  }
+  .subtitle {
+    margin: 0 0 24px;
+    color: #6b7280;
+    font-size: 13px;
+  }
+  form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  label {
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 4px;
+    display: block;
+  }
+  input, select, textarea {
+    width: 100%;
+    padding: 9px 11px;
+    border: 1px solid #d8dadf;
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: inherit;
+  }
+  textarea {
+    resize: vertical;
+    min-height: 60px;
+  }
+  button {
+    padding: 10px 16px;
+    border: none;
+    border-radius: 8px;
+    background: #e07a1f;
+    color: white;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  button:hover { background: #c9690f; }
+  .list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .report {
+    border: 1px solid #eef0f2;
+    border-radius: 8px;
+    padding: 12px 14px;
+  }
+  .report-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .report-location {
+    font-weight: 600;
+    font-size: 14px;
+  }
+  .report-desc {
+    font-size: 13px;
+    color: #4b5563;
+    margin: 6px 0;
+  }
+  .report-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    color: #6b7280;
+    margin-top: 8px;
+  }
+  .badge {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-weight: 600;
+  }
+  .badge.low { background: #e6f4ea; color: #1e7a3d; }
+  .badge.medium { background: #fdf0dc; color: #b3730a; }
+  .badge.high { background: #fbe2e0; color: #c0392b; }
+  .status-btn {
+    border: 1px solid #d8dadf;
+    background: white;
+    color: #374151;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .status-btn.resolved {
+    background: #eef4f1;
+    color: #2d6a4f;
+    border-color: #2d6a4f;
+  }
+  .delete-btn {
+    border: none;
+    background: none;
+    color: #b0b3b8;
+    cursor: pointer;
+    font-size: 14px;
+  }
+  .delete-btn:hover { color: #d64545; }
+  .empty {
+    color: #757575;
+    font-size: 14px;
+    text-align: center;
+    padding: 20px 0;
+  }
+  .footer-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: 4px 0 12px;
+    font-size: 13px;
+    color: #6b7280;
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <h1>💡 Street Light Fault Reporting</h1>
+  <p class="subtitle">Report a broken or faulty street light in your area</p>
+
+  <form id="reportForm">
+    <div>
+      <label for="location">Location / Pole Number</label>
+      <input type="text" id="location" placeholder="e.g. Main St & 5th Ave, Pole #124" required />
+    </div>
+    <div>
+      <label for="description">Fault Description</label>
+      <textarea id="description" placeholder="e.g. Light flickering at night, completely off since last week..." required></textarea>
+    </div>
+    <div>
+      <label for="severity">Severity</label>
+      <select id="severity">
+        <option value="low">Low</option>
+        <option value="medium" selected>Medium</option>
+        <option value="high">High</option>
+      </select>
+    </div>
+    <button type="submit">Submit Report</button>
+  </form>
+
+  <div class="footer-row">
+    <span id="countLabel">0 reports</span>
+    <button class="delete-btn" id="clearBtn" style="color:#6b7280;">Clear all</button>
+  </div>
+
+  <ul class="list" id="reportList"></ul>
+  <p class="empty" id="emptyMsg">No faults reported yet.</p>
+</div>
+
+<script>
+  const STORAGE_KEY = 'streetlight.reports';
+
+  function loadReports() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function saveReports(reports) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(reports));
+  }
+
+  let reports = loadReports();
+
+  const form = document.getElementById('reportForm');
+  const listEl = document.getElementById('reportList');
+  const emptyMsg = document.getElementById('emptyMsg');
+  const countLabel = document.getElementById('countLabel');
+  const clearBtn = document.getElementById('clearBtn');
+
+  function render() {
+    listEl.innerHTML = '';
+    countLabel.textContent = `${reports.length} report${reports.length === 1 ? '' : 's'}`;
+    emptyMsg.style.display = reports.length === 0 ? 'block' : 'none';
+
+    reports
+      .slice()
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .forEach((r) => {
+        const li = document.createElement('li');
+        li.className = 'report';
+        const date = new Date(r.createdAt).toLocaleString();
+        li.innerHTML = `
+          <div class="report-top">
+            <div class="report-location">${escapeHtml(r.location)}</div>
+            <button class="delete-btn" data-id="${r.id}" data-action="delete">✕</button>
+          </div>
+          <div class="report-desc">${escapeHtml(r.description)}</div>
+          <div class="report-meta">
+            <span>
+              <span class="badge ${r.severity}">${r.severity.toUpperCase()}</span>
+              &nbsp;${date}
+            </span>
+            <button class="status-btn ${r.status === 'resolved' ? 'resolved' : ''}" data-id="${r.id}" data-action="toggle">
+              ${r.status === 'resolved' ? '✓ Resolved' : 'Mark Resolved'}
+            </button>
+          </div>
+        `;
+        listEl.appendChild(li);
+      });
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const location = document.getElementById('location').value.trim();
+    const description = document.getElementById('description').value.trim();
+    const severity = document.getElementById('severity').value;
+    if (!location || !description) return;
+
+    reports.push({
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      location,
+      description,
+      severity,
+      status: 'pending',
+      createdAt: Date.now(),
+    });
+    saveReports(reports);
+    form.reset();
+    document.getElementById('severity').value = 'medium';
+    render();
+  });
+
+  listEl.addEventListener('click', (e) => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    const id = btn.dataset.id;
+    const action = btn.dataset.action;
+
+    if (action === 'delete') {
+      reports = reports.filter((r) => r.id !== id);
+    } else if (action === 'toggle') {
+      reports = reports.map((r) =>
+        r.id === id
+          ? { ...r, status: r.status === 'resolved' ? 'pending' : 'resolved' }
+          : r
+      );
+    }
+    saveReports(reports);
+    render();
+  });
+
+  clearBtn.addEventListener('click', () => {
+    if (reports.length === 0) return;
+    if (confirm('Delete all reports?')) {
+      reports = [];
+      saveReports(reports);
+      render();
+    }
+  });
+
+  render();
+</script>
+
+</body>
+</html>
